@@ -21,7 +21,7 @@
    The role this cmdlet belongs to the R1 RDW System Administrator Jeff Giese
 .FUNCTIONALITY
    Great tool to compare files/configurations/settings/etc to point-out delta's as-well-as matching lines.
-   Final version was saved on 2021-7-28
+   Final version was saved on 2021-7-29
 #>
 
 function compare-file{
@@ -50,16 +50,12 @@ if([string]::IsNullOrWhiteSpace($report)){
     push-location
     $report = ""
     $report = $($env:temp)
-#    sleep 5; write-output "Report location set to: `t $($report)"
     $report_set = $false
 }
 else{
     write "REPORT location set!"
     $report_set = $true
-#        sleep 5; write-output "Report location set to: `t $($report)"
 }
-
-
 
 #file/file name/content/location/search pattern
 # note, when testing i populated the below vars but once the param was in place the vars would be overwriten. 
@@ -108,6 +104,7 @@ $file_HT += @{
 $file_ht.GetEnumerator() | select name,value | sort name | ConvertTo-Csv -NoTypeInformation | Out-File $report\compare_delta.csv -Force
 
 if($file_hash_1 -eq $file_hash_2){
+
     Write-Warning "File compare between $($file_name_1) / $($file_name_2) are identical! Exiting script."
     
     $file_ht += @{
@@ -116,12 +113,12 @@ if($file_hash_1 -eq $file_hash_2){
 
     write-output "File compare between $($file_name_1) / $($file_name_2) are identical! Exiting script." | Out-File $report\compare_delta.csv -Append
     move-item $report\compare_delta.csv ("compare_" + "$($file_name_1.split(".")[0])" + "-" + "$($file_name_2.split(".")[0])" + "_" + "$($HourMinDATE)" + ".csv")
+    Pop-Location
     break
 }
 else{
     Write "comparing file contents for $($file_name_1) and $($file_name_2)..."
     sleep 1
-#    cls
 }
 
 ## Compare the two files. Get-Content annotates output objects with
@@ -136,7 +133,6 @@ else{
 
 Compare-Object $content_1 $content_2 -IncludeEqual | %{$_} | select sideindicator,inputobject | select @{name="file1_<=delta=>_file2:";e={$_.sideindicator}},@{name="delta_@_line_#:";e={$_.InputObject.ReadCount}},@{name="delta:";e={$_.inputobject}} | ConvertTo-Csv -NoTypeInformation | Out-File $report\compare_delta.csv -Force
 $delta_csv = import-csv $report\compare_delta.csv
-
 
 for($i=0;$i -lt $delta_csv.Count;$i++){
 
@@ -179,4 +175,5 @@ else{
     pop-location
     continue
 }
+
 }
