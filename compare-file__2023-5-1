@@ -1,0 +1,338 @@
+#2023-5-1  LATEST version, and i still don't know anything about github so i'm sure i'll have to re-do this eventually...
+#
+#2023-4-28 LATEST cdw-compareFILE script - and almost complete!
+#NOTES - i think the script is a good 85-90% complete. Now i just need to work on the parameters and saving the script and maybe
+#update the variable names and then put it in use!
+#should there be a version for interactive/jobbed version? maybe have a version to use for interactive console use?
+#
+#NEXT VERSION(S):
+# NEEDS THE END REPORT VAR for report time
+# work on the search feature??? it may increase times due to it would have to be within the foreach loop and if i have to add a loop within a
+#   loop 'fix' again then i won't add it.... increases script execution too much and pretty much makes it unusable...
+# multiple file compares? (if possible...)
+# designed to fire and forget for the DR scripting - i will probably need a new version but this is the key building block
+#
+
+#function compare-file{
+#    [CmdletBinding()]
+#    [Alias("cdwcf")]
+    param(
+        [parameter(valuefrompipeline=$true,
+        Mandatory=$false)]
+        [string]$file_1="",
+        [string]$file_2="",
+        [string]$report = ""
+#        [string]$pattern = ""
+)
+#>
+#save report - maybe i'll have it do an OGV and the user can copy/paste from there
+
+#sl "C:\Users\VHAV20GIESEJ\_script\CompareFILE\__LATEST__2022-12-19\"
+sl C:\Users\VHAV20GIESEJ\_script\CompareFILE\__LATEST__2022-12-19\files
+
+$file_1 = ".\zzDEL_Properties.txt"
+$file_2 = ".\zzDEL_Properties1.txt"
+
+#$file_1 = ".\file1_10k_lines.txt"
+#$file_2 = ".\file2_10k_lines.txt"
+
+#$file_1 = ".\_1_file1.txt "
+#$file_2 = ".\_2_file2.txt"
+$report = ".\"
+
+$date = Get-Date
+#$end_report = "" ?
+# or
+#$reportEND = "" ?
+$HourMinDATE = $date.ToString("HH" + "mm" + "__yyyy_MM_dd")
+$match_Combined = [ordered]@{}
+$match_Combined_linNUM = [ordered]@{}
+$match_HT_1 = [ordered]@{}
+$match_HT_2 = [ordered]@{}
+$reportSTART = $date::Now
+$server = $env:COMPUTERNAME
+
+#should i add the vars below like this:
+$lookup_match_HT = [ordered]@{}
+
+if([string]::IsNullOrWhiteSpace($report)){
+    write-warning "Looking for matching values between $($file_1) and $($file_2) and posting results to the screen..."
+    write-warning "NOTE - when comparing two large files against one another, ie MB+, expect long run times!`n"
+    push-location
+    $report = "."
+    $report_set = $false
+    $ToSCREEN = "YES"
+}
+else{
+    write "REPORT location set! `t $($report)"
+    $report_b4 = ""
+    $report_b4 = $($pwd.Path)
+    $report_set = $true
+}
+
+$compare_RESULTS = [System.Collections.ArrayList]@()
+$compareRESULTS_GROUP2 = [System.Collections.ArrayList]@()
+$compare_UPDATED = [PSCustomObject]@{}
+$content_1 = gc $file_1
+$content_count_1 = $content_1.count
+$content_2 = gc $file_2
+$content_count_2 = $content_2.Count
+$file_creation_1 = gci $file_1 | select -ExpandProperty creationtime
+$file_creation_2 = gci $file_2 | select -ExpandProperty creationtime
+$file_name_1 = $($content_1.pschildname) | select -Unique
+$file_name_2 = $($content_2.pschildname) | select -Unique
+$file_owner_1 = acl $file_name_1 | select -ExpandProperty owner
+$file_owner_2 = acl $file_name_2 | select -ExpandProperty owner
+$file_path_1 = $content_1.pspath | select -Unique
+$file_path_2 = $content_2.pspath | select -Unique
+$file_size_1 = gci $file_path_1 | select -ExpandProperty length
+$file_size_2 = gci $file_path_2 | select -ExpandProperty length
+
+sl $report
+
+#UPDATED commands:
+$compare_UPDATED = compare-Object $content_1 $content_2 -SyncWindow 0 -IncludeEqual
+$compare_UPDATED | group {$_.inputobject.readcount -as [int] | sort } | select @{n="grouping";e="count"},@{n="lineNUM";e={$_.Name}},@{n="lineSTATUS";e={$_.group.sideindicator}},@{n="value";e={$_.group.inputobject}} -OutVariable compareFILE1_2
+#keep in mind the above output is comparing file1 to file2, and when i was working on code further down in the script within the foreach loop i couldn't figure
+#out why one of my HT's wasn't showing the correct value in regards to the GROUP2 matches. I had to review all the code again and the logic behind it all and i
+#think i got it all straightened out now and continuing on with finalizing/finishing this script!
+
+$complete_REPORT = ""
+#New-Item -ItemType File -Path $report -Name zzcompleteREPORT.csv -Force
+$group2_file1_MATCH = [ordered]@{}
+$group2_file2_MATCH = [ordered]@{}
+$zzgroup2_file1_match1 = [ordered]@{}
+foreach($comp in $compareFILE1_2){
+    switch($comp.grouping){
+        "2" {
+            $note = "GROUP 2"
+#HT not used in last 2 versions, so commenting out:
+            $group2_file1_MATCH += @{
+                [system.convert]::ToInt64($($comp.lineNUM)) = $comp.value[0]
+            }
+
+#            $group2_file1_MATCH += @{
+#                [system.convert]::ToInt64($($comp.lineNUM)) = $comp.value[0]
+#            }
+
+#            $group2_file2_MATCH += @{
+ #               [system.convert]::ToInt64($($comp.lineNUM)) = $comp.value[1]
+  #          }
+#                $note_GROUP2 = " $comp.linNUM"
+
+
+#testing adding an array within the foreach loop - if it works i can remove from below (below the FE loop)!
+#    $group2_oooCombine_1 += (
+    $compareRESULTS_GROUP2 += (
+        [PSCustomObject] @{
+            Line = [system.convert]::ToInt64($comp.lineNUM)
+            File = $matchORDER
+            FileName1 = $file_name_1
+            FileName2 = $file_name_2
+            FileMATCH_LineNUM_1 = $($content_1[$comp.lineNUM - 1])
+            FileMATCH_LineNUM_2 = $($content_2[$comp.lineNUM - 1])
+#            Status = $t.status
+            Status = "=="
+#            Note = " $($t.value) : (line# on file2) MATCHING VALUE(S)!"
+            Note = " $($content_2[$comp.lineNUM - 1]) : (line# on file2) MATCHING VALUE(S)!"
+            Value = $comp.value
+        }
+    )
+
+
+
+
+
+        } #end of grouping '2'
+        "1" {
+            if($comp.lineSTATUS -eq "=="){
+                $note = "MATCHING VALUE(S)!"
+
+                $matchORDER = "file1 / 2 - matching value and line#'s!"
+                $matchORDER__1 = "file1 - matching value and line#"
+                $matchORDER__2 = "file2 - matching value and line#"
+            }
+            else{
+                $note = "`tno match..."
+                $matchORDER = "file1 / 2 - no match!"
+                $matchORDER__2 = "file2 - no match"
+                $matchORDER__1 = "file1 - no match"
+            }
+        } #end of grouping '1'
+    } #end of switch statement
+#storing result to array:
+#https://stackoverflow.com/questions/47096939/powershell-looping-and-storing-content-to-variable
+$compare_RESULTS += (
+    [PSCustomObject] @{
+        Line = [system.convert]::ToInt64($comp.lineNUM)
+        File = $matchORDER
+        FileName1 = $file_name_1
+        FileName2 = $file_name_2
+        FileMATCH_LineNUM_1 = $matchORDER__1
+        FileMATCH_LineNUM_2 = $matchORDER__2
+        Status = $comp.lineSTATUS
+        Note = $note
+        Value = $comp.value
+    }
+)
+}#end of foreach statement
+
+$group2_file1_MATCH = $group2_file1_MATCH.GetEnumerator() | select name, value
+
+<#2023-5-1 i moved the below code to be within the foreach loop and so far it appears to be working and now i'll work on the reporting section...
+$group2_file2_MATCH = $group2_file2_MATCH.GetEnumerator() | select name, value
+
+#ooo = out-of-order match, but i think i'll rename to something like: match_GROUP2lineNUM etc... and define it at the beginning of script
+$group2_oooCombine_1 = @()
+foreach($t in $group2_file1_MATCH){
+    $group2_oooCombine_1 += (
+        [PSCustomObject] @{
+            Line = [system.convert]::ToInt64($t.name)
+            File = $matchORDER
+            FileName1 = $file_name_1
+            FileName2 = $file_name_2
+            FileMATCH_LineNUM_1 = $($content_1[$t.name - 1])
+            FileMATCH_LineNUM_2 = $($content_2[$t.name - 1])
+#            Status = $t.status
+            Status = "=="
+#            Note = " $($t.value) : (line# on file2) MATCHING VALUE(S)!"
+            Note = " $($content_2[$t.name - 1]) : (line# on file2) MATCHING VALUE(S)!"
+            Value = $t.value
+        }
+    )
+}
+#>
+
+#i checked which command is faster between $compareFILE1_2 and $compare_RESULTS with only ms difference between the 2, but for large files it may make a difference:
+# Measure-Command {$compareFILE1_2 | ?{$_.linestatus -eq "=="}}    TotalMilliseconds : 719.933
+# Measure-Command {$compare_RESULTS | ?{$_.linestatus -eq "=="}}   TotalMilliseconds : 805.7332
+
+$matchGROUP2_lineNUM = 
+$match_ONLY = @() #should be less-than the original file line count
+$matchGROUP2_ONLY = @() 
+$matchONLY_GROUP2 = @() #GROUP2 matches, ie, PID are different between 2 identical reports
+$match_ONLY = $compareFILE1_2 | ?{$_.linestatus -eq "=="} | select @{n="line";e={$_.lineNUM -as [int]}},@{n="status";e={$_.linestatus}},value
+$matchGROUP2_ONLY = $group2_oooCombine_1 | select @{n="line";e={$_.line -as [int]}},status,@{n="value";e={$_.note}}
+$matchONLY_GROUP2 = $match_ONLY + $matchGROUP2_ONLY
+$matchONLY_GROUP2 = $matchONLY_GROUP2 | sort line
+
+
+
+<#somewhere in the code, it's adding another 199 entries back to the array
+#ah, so i figured out why the extra lines - the completeREPORT lists all lines and then i added in the GROUP2 matches via completeREPORT_ALL
+#(and it combines completeREPORT_1 + the completeREPORT)
+
+$report = ""
+$completeREPORT = @()
+#$completeREPORT = $compareFILE1_2 | select @{n="line";e={$_.lineNUM -as [int]}},@{n="status";e={$_.linestatus}},value
+$completeREPORT = $matchONLY_GROUP2
+$completeREPORT_1 = @()
+$completeREPORT_1 = $t1
+$completeREPORT_ALL = @()
+$completeREPORT_ALL =$completeREPORT + $completeREPORT_1
+#>
+
+
+
+
+#REPORTING SECTIONS
+#file1 name shortened for report section if GT 20 chars:
+if($file_name_1.Length -gt "20"){
+    $report_file_name_1 = $file_name_1
+    $report_file_name_1 = $file_name_1.Substring(0,3) + "'..file1..'" + $report_file_name_1.Substring($report_file_name_1.length - 4)
+}
+else{
+    $report_file_name_1 = $file_name_1
+}
+#file2 name shortened for report section if GT 20 chars:
+if($file_name_2.Length -gt "20"){
+    $report_file_name_2 = $file_name_2
+    $report_file_name_2 = $file_name_2.Substring(0,3) + "'..file2..'" + $report_file_name_2.Substring($report_file_name_2.length - 4)
+}
+else{
+    $report_file_name_2 = $file_name_2
+}
+
+
+
+
+
+
+$report_file_name_1
+    #report top 10 folders/files:
+    $gci_files_Screen = $gci_DIR_ToSCREEN.GetEnumerator() | select name,value | sort value -Descending | select -First 10
+    $gci_files_Screen += $gci_files.GetEnumerator() | sort length -Descending | select name,@{n="value";e="length"} | select -First 10
+    # report ALL folders/files:
+    $report_ALL = $gci_DIR_ToSCREEN.GetEnumerator() | select name,value | sort value -Descending
+    $report_ALL += $gci_files.GetEnumerator() | sort length -Descending | select name,@{n="value";e="length"}
+    #in event nested directory length is GT 100 characters:
+    $report_dirNAME = ""
+    if($directory.Length -gt "100"){
+        $report_dirNAME = ($directory.Substring(0,10) + "'..DIRECTORY_NAME_GT_100_Chars..'" + $directory.Remove(0,100)) `
+    }
+    else{
+        $report_dirNAME = $directory
+    }
+
+    $report_TOP10_ALL_HT = [ordered]@{}
+
+    #HT Top 10:
+    $report_TOP10_HT = [ordered]@{}
+    for($i=0;$i -lt $gci_files_Screen.Count;$i++){
+        if($gci_files_Screen.name[$i].Length -gt "100"){
+            $report_TOP10_HT += @{
+                ($gci_files_Screen.name[$i].Substring(0,10) + "'..File_Name_GT_100_Chars..'" + $gci_files_Screen.name[$i].Remove(0,100)) `
+                = $gci_files_Screen.value[$i]
+            }
+        }
+        else{
+            $report_TOP10_HT += @{
+                $gci_files_Screen.name[$i] = $gci_files_Screen.value[$i]
+            }
+        }
+    }
+    #HT report ALL Folders/Files:
+    $report_ALL_HT = [ordered]@{}
+    for($i=0;$i -lt $gci_files_Screen.Count;$i++){
+        if($gci_files_Screen.name[$i].Length -gt "100"){
+            $report_ALL_HT += @{
+                ($gci_files_Screen.name[$i].Substring(0,10) + "'..File_Name_GT_100_Chars..'" + $gci_files_Screen.name[$i].Remove(0,100)) `
+                = $gci_files_Screen.value[$i]
+            }
+        }
+        else{
+            $report_ALL_HT += @{
+                $gci_files_Screen.name[$i] = $gci_files_Screen.value[$i]
+            }
+        }
+    }
+
+
+
+
+
+
+
+
+
+
+Write-Warning "end of compare..."
+$date #start
+get-date #end
+
+<#2023-5-1
+#! script execution time increased by double! last week it was ~10 - 13 min, today it's up to 23 min!
+
+WARNING: end of compare...
+
+Monday, May 1, 2023 7:31:57 AM
+Monday, May 1, 2023 7:54:41 AM
+
+
+
+start:
+Monday, May 1, 2023 12:08:21 PM
+
+end:
+Monday, May 1, 2023 12:19:06 PM
+#>
